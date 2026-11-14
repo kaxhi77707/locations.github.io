@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Website Folder GitHub Upload</title>
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172336;background:#eef3f7;margin:0;padding:30px 16px}main{max-width:760px;margin:auto;background:#fff;border-radius:18px;box-shadow:0 12px 35px #18395718;overflow:hidden}.hero{background:#143953;color:#fff;padding:28px 32px}.hero h1{font-size:25px;margin:0 0 8px}.hero p{margin:0;color:#d3e3ec}.content{padding:28px 32px}label{display:block;font-weight:700;font-size:14px;margin:18px 0 7px}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}input{border:1px solid #bfccd7;border-radius:8px;padding:11px;width:100%;font:inherit}input[type=file]{padding:9px}small{display:block;color:#586a78;line-height:1.55;margin-top:7px}.note{background:#eef8fa;border-left:4px solid #2692a5;padding:13px 15px;margin:16px 0;line-height:1.5}.warn{background:#fff6e6;border-left-color:#ef9f23}button{background:#087b75;border:0;border-radius:9px;padding:13px 20px;color:white;font-weight:700;font-size:15px;cursor:pointer;margin-top:18px}button:hover{background:#056960}button:disabled{background:#95a6ab;cursor:not-allowed}.progress{margin-top:20px;display:none}progress{width:100%;height:18px}#status{font-weight:700;margin:9px 0}#log{background:#101e2a;color:#d6e8ea;padding:14px;border-radius:8px;white-space:pre-wrap;overflow:auto;height:180px;font:12px/1.5 ui-monospace,monospace}a{color:#096e77}@media(max-width:560px){.row{grid-template-columns:1fr}.hero,.content{padding:22px}}
+</style></head><body><main>
+<div class="hero"><h1>Website folder GitHub par upload karein</h1><p>Poora folder, images, CSS aur pages — ek commit mein.</p></div>
+<div class="content">
+<div class="note">Pehle website ki <strong>full ZIP extract</strong> karein. Phir woh folder select karein jiske andar seedha <strong>index.html</strong> aur <strong>wp-content</strong> hain. Folder structure waisa hi rahega.</div>
+<div class="row"><div><label for="owner">GitHub username</label><input id="owner" value="kaxhi77707" autocomplete="off"></div><div><label for="repo">Repository name</label><input id="repo" value="locations.github.io" autocomplete="off"></div></div>
+<label for="branch">Branch</label><input id="branch" value="main" autocomplete="off">
+<label for="token">GitHub fine-grained access token</label><input id="token" type="password" placeholder="GitHub token yahan paste karein" autocomplete="off" spellcheck="false">
+<small>Token khud banayein: <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub par token banayein ↗</a>. Sirf is repository ko select karein aur <strong>Contents: Read and write</strong> permission dein. Token kisi ko chat mein na bhejein. Yeh page token save nahi karta; requests seedha GitHub API ko jaati hain.</small>
+<label for="folder">Extract kiya hua website folder</label><input id="folder" type="file" webkitdirectory directory multiple><small id="fileinfo">Abhi folder select nahi hua.</small>
+<div class="note warn"><strong>Dhyan dein:</strong> Is uploader ko sirf trusted copy se kholein. Yeh selected branch par files add/replace karega; doosri existing files delete nahi karega. Browser window upload ke dauran khuli rakhein. GitHub Pages Settings mein branch <strong>main / (root)</strong> select honi chahiye.</div>
+<button id="upload" type="button">GitHub par upload karein</button>
+<div class="progress" id="progressbox"><div id="status" role="status" aria-live="polite">Tayyar</div><progress id="bar" max="1" value="0"></progress><pre id="log" aria-live="polite"></pre></div>
+</div></main>
+<script>
+'use strict';
+(() => {
+const $=id=>document.getElementById(id), btn=$('upload'), folder=$('folder'), log=$('log'), bar=$('bar'), status=$('status');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const lines=[];function say(s){lines.push(s);if(lines.length>100)lines.shift();log.textContent=lines.join('\n');log.scrollTop=log.scrollHeight;}
+function listFiles(){return [...folder.files].map(f=>{let p=(f.webkitRelativePath||f.name).split('/');if(p.length>1)p.shift();return {file:f,path:p.join('/')};}).filter(x=>x.path&&!x.path.split('/').some(p=>p==='.git'||p==='.DS_Store'));}
+folder.addEventListener('change',()=>{const files=listFiles(), index=files.some(x=>x.path==='index.html'), wp=files.some(x=>x.path.startsWith('wp-content/'));$('fileinfo').textContent=files.length+' files select hui hain. '+(index?'index.html mila. ':'WARNING: folder ke andar index.html nahi mila. ')+(wp?'wp-content mila.':'WARNING: wp-content nahi mila.');});
+function bytesToBase64(bytes){let out='';const size=0x8000;for(let i=0;i<bytes.length;i+=size)out+=String.fromCharCode(...bytes.subarray(i,i+size));return btoa(out);}
+async function gitSha(bytes){const header=new TextEncoder().encode('blob '+bytes.byteLength+'\0');const data=new Uint8Array(header.length+bytes.length);data.set(header);data.set(bytes,header.length);const hash=await crypto.subtle.digest('SHA-1',data);return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+const textExt=/\.(html?|css|js|mjs|json|txt|xml|svg|md|csv|yml|yaml|map|webmanifest)$/i;
+btn.addEventListener('click',async()=>{
+ const owner=$('owner').value.trim(),repo=$('repo').value.trim(),branch=$('branch').value.trim(),token=$('token').value.trim(), files=listFiles();
+ if(!owner||!repo||!branch||!token||!files.length){alert('Username, repository, branch, token aur folder tamam zaroori hain.');return;}
+ if(!files.some(x=>x.path==='index.html')||!files.some(x=>x.path.startsWith('wp-content/'))){alert('Sahi extracted website folder select karein: uske andar index.html aur wp-content dono hone chahiye.');return;}
+ if(!confirm(files.length+' files '+owner+'/'+repo+' ki '+branch+' branch mein upload hongi. Matching files replace hongi; doosri files delete nahi hongi. Continue?'))return;
+ btn.disabled=true;folder.disabled=true;$('progressbox').style.display='block';log.textContent='';lines.length=0;bar.max=files.length+3;bar.value=0;
+ const api='https://api.github.com/repos/'+encodeURIComponent(owner)+'/'+encodeURIComponent(repo), headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+token,'X-GitHub-Api-Version':'2022-11-28'};let lastWrite=0;
+ async function request(path,method='GET',body,waitWrite=false){
+  for(let attempt=0;attempt<6;attempt++){
+   if(waitWrite){let delta=1400-(Date.now()-lastWrite);if(delta>0)await sleep(delta);lastWrite=Date.now();}
+   let res;try{res=await fetch(api+path,{method,headers:{...headers,...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body)});}catch(err){throw new Error('GitHub se connection nahi bana. Internet check karein. '+err.message);}
+   let data={};try{data=await res.json();}catch{}
+   if(res.ok)return data;
+   const rate=(res.status===429)||(res.status===403&&(res.headers.get('retry-after')||res.headers.get('x-ratelimit-remaining')==='0'||/secondary rate|abuse|rate limit/i.test(data.message||'')));
+   if(rate && attempt<5){let seconds=Number(res.headers.get('retry-after')||0);if(!seconds){const reset=Number(res.headers.get('x-ratelimit-reset')||0);seconds=reset>0&&res.headers.get('x-ratelimit-remaining')==='0'?Math.max(2,reset-Math.floor(Date.now()/1000)+2):65;}seconds=Math.min(seconds,3600);say('GitHub rate limit: '+seconds+' seconds ka intezar...');await sleep(seconds*1000);continue;}
+   throw new Error('GitHub HTTP '+res.status+': '+(data.message||'request failed'));
+  }
+ }
+ try{
+  status.textContent='Repository check ho rahi hai...';say('Branch aur existing files check ho rahi hain.');
+  const ref=await request('/git/ref/heads/'+branch.split('/').map(encodeURIComponent).join('/')); const head=ref.object.sha;
+  const commit=await request('/git/commits/'+head);const baseTree=commit.tree.sha;
+  const tree=await request('/git/trees/'+baseTree+'?recursive=1');if(tree.truncated)throw new Error('Repository ki file list bohat badi hai. Yeh uploader safety ke liye ruk gaya.');
+  const existing=new Map(tree.tree.filter(x=>x.type==='blob').map(x=>[x.path,x.sha]));const uploaded=new Map();const entries=[];let unchanged=0,binaries=0;
+  for(let i=0;i<files.length;i++){
+   const {file,path}=files[i];status.textContent=`File ${i+1} / ${files.length}: ${path}`;const bytes=new Uint8Array(await file.arrayBuffer());
+   if(bytes.length>95*1024*1024)throw new Error(path+' bohat badi hai; GitHub mein 100 MB limit hai.');
+   const sha=await gitSha(bytes);if(existing.get(path)===sha){unchanged++;bar.value=i+1;continue;}
+   let text=null;if(textExt.test(path)){try{text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);}catch{}}
+   if(text!==null){entries.push({path,mode:'100644',type:'blob',content:text});}
+   else{
+    let blobSha=uploaded.get(sha);if(!blobSha){const result=await request('/git/blobs','POST',{content:bytesToBase64(bytes),encoding:'base64'},true);blobSha=result.sha;if(blobSha!==sha)throw new Error('File verification failed: '+path);uploaded.set(sha,blobSha);binaries++;if(binaries%20===0)say(binaries+' images/binary files upload ho chuki hain.');}
+    entries.push({path,mode:'100644',type:'blob',sha:blobSha});
+   }
+   bar.value=i+1;
+  }
+  say(unchanged+' unchanged files; '+entries.length+' new/updated files.');
+  if(!entries.length){status.textContent='Sab files pehle se uploaded hain.';say('Koi naya commit zaroori nahi.');bar.value=bar.max;return;}
+  status.textContent='Files ki directory ban rahi hai...';const newTree=await request('/git/trees','POST',{base_tree:baseTree,tree:entries},true);bar.value=files.length+1;
+  status.textContent='Commit ban raha hai...';const newCommit=await request('/git/commits','POST',{message:'Upload complete website',tree:newTree.sha,parents:[head]},true);bar.value=files.length+2;
+  status.textContent='Branch update ho rahi hai...';await request('/git/refs/heads/'+branch.split('/').map(encodeURIComponent).join('/'),'PATCH',{sha:newCommit.sha,force:false},true);bar.value=bar.max;
+  status.textContent='Upload complete!';say('Commit complete: '+newCommit.sha);say('GitHub Pages ko update hone mein kuch minutes lag sakte hain.');
+ }catch(e){status.textContent='Upload complete nahi hua';say('ERROR: '+e.message);say('Check karein: token Contents read/write ho, sahi repository access ho, aur main branch maujood ho.');}finally{btn.disabled=false;folder.disabled=false;$('token').value='';}
+});
+})();
+</script></body></html>
